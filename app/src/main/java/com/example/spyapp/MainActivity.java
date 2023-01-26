@@ -20,45 +20,44 @@ import java.net.Socket;
 
 public class MainActivity extends AppCompatActivity {
 
-    /*ConstraintLayout constraintLayout;
+    ConstraintLayout constraintLayout;
     ImageView spyCardImage;
     EditText etWord, etNumberOfCards;
-    */Button submitButton;/*
+    Button submitButton;
     TextView tvTimer;
     int player, remainingRedCards, remainingBlueCards, globalSequence;
     String nOfCardsStr;
     String word;
     int timer, min, sec;
-    Thread countDownT, listenForNewGameT;
+    Thread countDownT;
     String id;
-    boolean newGame, stopListening;
-    int globalCountDownSequence, globalListenSequence;*/
+    int globalCountDownSequence;
     Socket listenerSocket, speakerSocket;
     ServerSocket listenerSS, speakerSS;
     DataInputStream listenerDin, speakerDin;
     DataOutputStream speakerDout, listenerDout;
     boolean listenerConnected, speakerConnected;
-    int globalSequence;
+    Context context;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        /*pyCardImage = findViewById(R.id.spyCardImageView);
+        spyCardImage = findViewById(R.id.spyCardImageView);
         etWord = findViewById(R.id.etWord);
         etNumberOfCards = findViewById(R.id.editTextNumberOfCards);
-        */
-        submitButton = findViewById(R.id.submitButton);/*
+        submitButton = findViewById(R.id.submitButton);
         tvTimer = findViewById(R.id.tvTimer);
         constraintLayout  = findViewById(R.id.constrLayout);
-        globalSequence = globalListenSequence = globalCoundownSequence = 0;
+        globalSequence = globalCountDownSequence = 0;
 
 
-        */submitButton.setOnClickListener(view -> globalSequence++);/*
-        submitButton.setEnabled(false);*/
+        submitButton.setOnClickListener(view -> checkBeforeSending());
+        submitButton.setEnabled(false);
         listenerConnected = speakerConnected = false;
         globalSequence = 0;
+        context = getApplicationContext();
 
         launchSpeakerServer();
         launchListenerServer();
@@ -90,21 +89,20 @@ public class MainActivity extends AppCompatActivity {
             }
 
             int localSequence  = globalSequence;
-            String pattern ="", responce;
+            String response;
             while(true) {
                 try {
                     Thread.sleep(1000);
                     Log.d("screwed","-");
                     if(localSequence != globalSequence) {
                         localSequence++;
-                        pattern+= "[-]";
-                        speakerDout.writeUTF(pattern);
+                        speakerDout.writeUTF(nOfCardsStr+word);
                         speakerDout.flush();
-                        Log.d("screwed","speaker: sent " + pattern);
+                        Log.d("screwed","speaker: sent " + nOfCardsStr+word);
                         while(true) {
                             try {
-                                responce = speakerDin.readUTF();
-                                Log.d("screwed","speaker : listener responded by " + responce);
+                                response = speakerDin.readUTF();
+                                Log.d("screwed","speaker : listener responded by " + response);
                                 break;
                             }catch(Exception ee) {
                                 Log.d("screwed","speaker ee : " + ee);
@@ -146,16 +144,14 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            String data = null;
-
             while(true){
                 try{
                     while(true) {
                         try {
                             Thread.sleep(1000);
                             Log.d("screwed",".");
-                            data = listenerDin.readUTF();
-                            Log.d("screwed","listener : received " + data);
+                            id = listenerDin.readUTF();
+                            Log.d("screwed","listener : received " + id);
                             break;
                         }catch(Exception ee) {
                             Log.d("screwed","listener ee : " + ee);
@@ -164,6 +160,24 @@ public class MainActivity extends AppCompatActivity {
                     listenerDout.writeUTF("ok");
                     listenerDout.flush();
                     Log.d("screwed","sent reception confirmation");
+
+
+                    //UI things
+                    int num = Integer.parseInt(id.substring(3));
+                    int resourceId = context.getResources().getIdentifier("image_part_0" + (num < 10 ? "0" : "") + num, "drawable", context.getPackageName());
+                    runOnUiThread(() -> spyCardImage.setImageResource(resourceId));
+                    stopCounting();
+
+
+                    player = id.charAt(0) - '0';
+                    remainingRedCards = id.charAt(1) - '0';
+                    remainingBlueCards = id.charAt(2) - '0';
+                    changeBackground();
+                    runOnUiThread(() -> submitButton.setEnabled(true));
+                    stopCounting();
+                    countDown(context);
+
+
                 }catch(Exception e){
                     Log.d("screwed","listener e : " + e);
                 }
@@ -172,9 +186,7 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-}
-
-  /*  public void launchServer(){
+ /*   public void launchServer(){
         new Thread(() -> {
             try {
                 newGame = false;
@@ -263,6 +275,8 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
+  */
+
     void checkBeforeSending() {
         nOfCardsStr = etNumberOfCards.getText().toString();
         word = etWord.getText().toString();
@@ -288,13 +302,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void countDown(Context context){
-        timer  = 15;
+        timer  = 180;
         countDownT = new Thread(() -> {
             int localCountdownSequence = globalCountDownSequence;
-            while(localCountdownSequence == globalCountDownSequence){
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ignored) {}
+            while(localCountdownSequence == globalCountDownSequence  && timer>0){
                 timer-= 1;
                 if(timer<=0) {
                     runOnUiThread(() -> Toast.makeText(context, "your time is up", Toast.LENGTH_SHORT).show());
@@ -303,13 +314,23 @@ public class MainActivity extends AppCompatActivity {
                 min = timer/60;
                 sec = timer%60;
                 runOnUiThread(() -> tvTimer.setText("0"+ min +":"+(sec<10?"0":"")+ sec));
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ignored) {}
             }
+            if(timer <=0) {
+                runOnUiThread(() -> submitButton.setEnabled(false));
+                nOfCardsStr = "x";
+                word = "";
+                globalSequence++;
+            }
+
         });
         countDownT.start();
         Log.d("screwed","started countdown");
     }
 
-    void listenForNewGame(Socket s, DataInputStream din, DataOutputStream dout){
+/*    void listenForNewGame(Socket s, DataInputStream din, DataOutputStream dout){
         listenForNewGameT = new Thread(() -> {
             while(true){
             Log.d("screwed",".");
@@ -335,9 +356,13 @@ public class MainActivity extends AppCompatActivity {
         Log.d("screwed","started listening");
     }
 
+ */
+
     void stopCounting(){
         globalCountDownSequence++;
         runOnUiThread(() ->tvTimer.setText("Timer Paused"));
     }
+
+
+
 }
-*/
