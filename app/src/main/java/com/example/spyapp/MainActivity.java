@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
     ServerSocket listenerSS, speakerSS;
     DataInputStream listenerDin, speakerDin;
     DataOutputStream speakerDout, listenerDout;
-    boolean listenerConnected, speakerConnected;
+    boolean listenerConnected, speakerConnected, receiptConfirmation, listeningSuccess;
     Context context;
 
     @Override
@@ -55,7 +55,7 @@ public class MainActivity extends AppCompatActivity {
 
         submitButton.setOnClickListener(view -> checkBeforeSending());
         submitButton.setEnabled(false);
-        listenerConnected = speakerConnected = false;
+        listenerConnected = speakerConnected = receiptConfirmation = listeningSuccess = true;
         globalSequence = 0;
         context = getApplicationContext();
 
@@ -65,124 +65,164 @@ public class MainActivity extends AppCompatActivity {
 
     private void launchSpeakerServer() {
         new Thread(() -> {
-            try {
-                Log.d("screwed", "speaker : creating speaker Server Socket (4200)");
-                speakerSS = new ServerSocket(4200);
-                Log.d("screwed", "speaker : speaker Server Socket created successfully");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            while (true) {
-                try {
-                    Thread.sleep(1000);
-                    Log.d("screwed", "speaker : accepting speakerSocket");
-                    speakerSocket = speakerSS.accept();
-                    Log.d("screwed", "speaker : socket created successfully");
-                    speakerDin = new DataInputStream(speakerSocket.getInputStream());
-                    speakerDout = new DataOutputStream(speakerSocket.getOutputStream());
-                    speakerConnected = true;
-                    break;
-
-                } catch (Exception e) {
-                    Log.d("screwed", "speaker : " + e);
-                }
-            }
-
-            int localSequence  = globalSequence;
-            String response;
             while(true) {
+                ServerSocket ss;
                 try {
-                    Thread.sleep(1000);
-                    Log.d("screwed","-");
-                    if(localSequence != globalSequence) {
-                        localSequence++;
-                        speakerDout.writeUTF(nOfCardsStr+word);
-                        speakerDout.flush();
-                        Log.d("screwed","speaker: sent " + nOfCardsStr+word);
-                        while(true) {
-                            try {
-                                response = speakerDin.readUTF();
-                                Log.d("screwed","speaker : listener responded by " + response);
-                                break;
-                            }catch(Exception ee) {
-                                Log.d("screwed","speaker ee : " + ee);
+                    Log.d("screwed", "speaker : creating speaker Server Socket (4200)");
+                    ss = new ServerSocket(4200);
+                    if(ss != null)
+                        speakerSS = ss;
+                    Log.d("screwed", "speaker : speaker Server Socket created successfully");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Log.d("screwed",e.toString());
+                }
+                speakerConnected = false;
+                while (true) {
+                    try {
+                        Thread.sleep(1000);
+                        Log.d("screwed", "speaker : accepting speakerSocket");
+                        speakerSocket = speakerSS.accept();
+                        Log.d("screwed", "speaker : socket created successfully");
+                        speakerDin = new DataInputStream(speakerSocket.getInputStream());
+                        speakerDout = new DataOutputStream(speakerSocket.getOutputStream());
+                        speakerConnected = true;
+                        break;
+
+                    } catch (Exception e) {
+                        Log.d("screwed", "speaker : " + e);
+                    }
+                }
+
+                while(!listenerConnected) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {}
+                    System.out.println("speaker : waiting for listenerSocket to accept...");
+                }
+
+                int localSequence = globalSequence;
+                String response;
+
+                while (true) {
+                    try {
+                        Thread.sleep(1000);
+                        Log.d("screwed", "-");
+                        if (!receiptConfirmation) {
+                            globalSequence++;
+                        }
+                        if (localSequence != globalSequence) {
+                            localSequence++;
+                            speakerDout.writeUTF(nOfCardsStr + word);
+                            speakerDout.flush();
+                            Log.d("screwed", "speaker: sent " + nOfCardsStr + word);
+                            while (true) {
+                                try {
+                                    response = speakerDin.readUTF();
+                                    Log.d("screwed", "speaker : listener responded by " + response);
+                                    receiptConfirmation = true;
+                                    break;
+                                } catch (Exception ee) {
+                                    Log.d("screwed", "speaker ee : " + ee);
+                                    receiptConfirmation = false;
+                                    break;
+                                }
                             }
                         }
+
+                    } catch (Exception e) {
+                        Log.d("screwed", "speaker e : " + e);
                     }
-
-                }catch (Exception e) {
-                    Log.d("screwed","speaker e : " + e);
+                    if(!receiptConfirmation  || !listeningSuccess)
+                        break;
                 }
+
             }
-
-
         }).start();
     }
 
     private void launchListenerServer() {
         new Thread(() -> {
-            try {
-                Log.d("screwed", "listener : creating listener Server Socket (4100)");
-                listenerSS = new ServerSocket(4100);
-                Log.d("screwed", "listener : listener Server Socket created successfully");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            while (true) {
+            while(true) {
+                ServerSocket ss;
                 try {
-                    Thread.sleep(1000);
-                    Log.d("screwed", "listener : accepting listenerSocket");
-                    listenerSocket = listenerSS.accept();
-                    Log.d("screwed", "listener : socket created successfully");
-                    listenerDin = new DataInputStream(listenerSocket.getInputStream());
-                    listenerDout = new DataOutputStream(listenerSocket.getOutputStream());
-                    listenerConnected = true;
-                    break;
-
+                    Log.d("screwed", "listener : creating listener Server Socket (4100)");
+                    ss = new ServerSocket(4100);
+                    if(ss != null)
+                        listenerSS = ss;
+                    Log.d("screwed", "listener : listener Server Socket created successfully");
                 } catch (Exception e) {
-                    Log.d("screwed", "listener : " + e);
+                    e.printStackTrace();
+                    Log.d("screwed",e.toString());
                 }
-            }
+                listenerConnected = false;
+                while (true) {
+                    try {
+                        Thread.sleep(1000);
+                        Log.d("screwed", "listener : accepting listenerSocket");
+                        listenerSocket = listenerSS.accept();
+                        Log.d("screwed", "listener : socket created successfully");
+                        listenerDin = new DataInputStream(listenerSocket.getInputStream());
+                        listenerDout = new DataOutputStream(listenerSocket.getOutputStream());
+                        listenerConnected = true;
+                        listeningSuccess  = true;
+                        break;
 
-            while(true){
-                try{
-                    while(true) {
-                        try {
-                            Thread.sleep(1000);
-                            Log.d("screwed",".");
-                            id = listenerDin.readUTF();
-                            Log.d("screwed","listener : received " + id);
-                            break;
-                        }catch(Exception ee) {
-                            Log.d("screwed","listener ee : " + ee);
-                        }
+                    } catch (Exception e) {
+                        Log.d("screwed", "listener : " + e);
                     }
-                    listenerDout.writeUTF("ok");
-                    listenerDout.flush();
-                    Log.d("screwed","sent reception confirmation");
+                }
+
+                while(!speakerConnected) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {}
+                    System.out.println("listener : waiting for speakerSocket to accept...");
+                }
+
+                while (true) {
+                    try {
+                        while (true) {
+                            try {
+                                Thread.sleep(1000);
+                                Log.d("screwed", ".");
+                                id = listenerDin.readUTF();
+                                Log.d("screwed", "listener : received " + id);
+                                listeningSuccess = true;
+                                break;
+                            } catch (Exception ee) {
+                                Log.d("screwed", "listener ee : " + ee);
+                                listeningSuccess = false;
+                                break;
+                            }
+                        }
+                        if(!listeningSuccess || !receiptConfirmation)
+                            break;
+                        listenerDout.writeUTF("ok");
+                        listenerDout.flush();
+                        Log.d("screwed", "sent reception confirmation");
 
 
-                    //UI things
-                    int num = Integer.parseInt(id.substring(3));
-                    int resourceId = context.getResources().getIdentifier("image_part_0" + (num < 10 ? "0" : "") + num, "drawable", context.getPackageName());
-                    runOnUiThread(() -> spyCardImage.setImageResource(resourceId));
-                    stopCounting();
+                        //UI things
+                        int num = Integer.parseInt(id.substring(3));
+                        int resourceId = context.getResources().getIdentifier("image_part_0" + (num < 10 ? "0" : "") + num, "drawable", context.getPackageName());
+                        runOnUiThread(() -> spyCardImage.setImageResource(resourceId));
 
 
-                    player = id.charAt(0) - '0';
-                    remainingRedCards = id.charAt(1) - '0';
-                    remainingBlueCards = id.charAt(2) - '0';
-                    changeBackground();
-                    runOnUiThread(() -> submitButton.setEnabled(true));
-                    stopCounting();
-                    countDown(context);
+                        player = id.charAt(0) - '0';
+                        remainingRedCards = id.charAt(1) - '0';
+                        remainingBlueCards = id.charAt(2) - '0';
+                        changeBackground();
+                        runOnUiThread(() -> submitButton.setEnabled(true));
+                        stopCounting();
+                        countDown(context);
 
 
-                }catch(Exception e){
-                    Log.d("screwed","listener e : " + e);
+                    } catch (Exception e) {
+                        Log.d("screwed", "listener e : " + e);
+                    }
                 }
             }
-
         }).start();
     }
 
