@@ -63,6 +63,11 @@ public class MainActivity extends AppCompatActivity {
         launchListenerServer();
     }
 
+    @Override
+    public void onBackPressed() {
+        Toast.makeText(context, "Back button disabled to prevent any surprises ", Toast.LENGTH_SHORT).show();
+    }
+
     private void launchSpeakerServer() {
         new Thread(() -> {
             while(true) {
@@ -80,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
                 speakerConnected = false;
                 while (true) {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(400);
                         Log.d("screwed", "speaker : accepting speakerSocket");
                         speakerSocket = speakerSS.accept();
                         Log.d("screwed", "speaker : socket created successfully");
@@ -96,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
 
                 while(!listenerConnected) {
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(400);
                     } catch (InterruptedException ignored) {}
                     System.out.println("speaker : waiting for listenerSocket to accept...");
                 }
@@ -106,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
 
                 while (true) {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(400);
                         Log.d("screwed", "-");
                         if (!receiptConfirmation) {
                             globalSequence++;
@@ -120,7 +125,11 @@ public class MainActivity extends AppCompatActivity {
                                 try {
                                     response = speakerDin.readUTF();
                                     Log.d("screwed", "speaker : listener responded by " + response);
-                                    receiptConfirmation = true;
+                                    runOnUiThread(()-> submitButton.setEnabled(false));
+                                    if (!receiptConfirmation) {
+                                        runOnUiThread(() -> Toast.makeText(context, "Sent the data", Toast.LENGTH_LONG).show());
+                                        receiptConfirmation = true;
+                                    }
                                     break;
                                 } catch (Exception ee) {
                                     Log.d("screwed", "speaker ee : " + ee);
@@ -158,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
                 listenerConnected = false;
                 while (true) {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(400);
                         Log.d("screwed", "listener : accepting listenerSocket");
                         listenerSocket = listenerSS.accept();
                         Log.d("screwed", "listener : socket created successfully");
@@ -175,16 +184,18 @@ public class MainActivity extends AppCompatActivity {
 
                 while(!speakerConnected) {
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(400);
                     } catch (InterruptedException ignored) {}
                     System.out.println("listener : waiting for speakerSocket to accept...");
                 }
+
+                runOnUiThread(()  -> Toast.makeText(context, "Connexion Established", Toast.LENGTH_SHORT).show());
 
                 while (true) {
                     try {
                         while (true) {
                             try {
-                                Thread.sleep(1000);
+                                Thread.sleep(400);
                                 Log.d("screwed", ".");
                                 id = listenerDin.readUTF();
                                 Log.d("screwed", "listener : received " + id);
@@ -226,97 +237,6 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
- /*   public void launchServer(){
-        new Thread(() -> {
-            try {
-                newGame = false;
-                id = "";
-                Context context = getApplicationContext();
-                ServerSocket ss = new ServerSocket(4900);
-                Socket s = ss.accept();
-                //s.setSoTimeout(1000);
-                Log.d("screwed","connexion established");
-                DataInputStream din = new DataInputStream(s.getInputStream());
-                DataOutputStream dout = new DataOutputStream(s.getOutputStream());
-                int localSequence = globalSequence;
-                while (true) {
-                    if (s==null || s.isClosed() || !s.isConnected()) {
-                        Log.d("screwed","not connected. trying to reconnect...");
-                        s = ss.accept();
-                        Log.d("screwed","socket accepted");
-                        din = new DataInputStream(s.getInputStream());
-                        dout = new DataOutputStream(s.getOutputStream());
-                    }
-                    if(!newGame) {
-                        while (true) {
-                            Log.d("screwed", "-");
-                            try {
-                                Thread.sleep(500);
-                                id = din.readUTF();
-                                //confirmation
-                                dout.writeUTF("o");
-                                dout.flush();
-                                Log.d("screwed","sent confirmation");
-                                break;
-                            } catch (Exception e) {
-                                Log.d("screwed",e.toString());
-                            }
-                        }
-                    }else
-                        newGame = false;
-
-
-
-                    Log.d("screwed","received an id : " + id);
-                    if(spyCardImage.getDrawable() == null) {
-                        int num = Integer.parseInt(id.substring(3));
-                        int resourceId = context.getResources().getIdentifier("image_part_0" + (num < 10 ? "0" : "") + num,"drawable", context.getPackageName());
-                        runOnUiThread(() -> spyCardImage.setImageResource(resourceId));
-                    }
-                    player = id.charAt(0) - '0';
-                    remainingRedCards = id.charAt(1) - '0';
-                    remainingBlueCards = id.charAt(2) - '0';
-                    changeBackground();
-                    runOnUiThread(() -> submitButton.setEnabled(true));
-
-                    countDown(context);
-                    listenForNewGame(s,din,dout);
-                    while(true){
-                        Thread.sleep(50);
-
-                        if(newGame)
-                            break;
-
-                        if(localSequence != globalSequence ){
-                            Log.d("screwed","clicked on submit");
-                            localSequence++;
-                            break;
-                        }
-                        if(timer <=0) {
-                            globalCountDownSequence++;
-                            nOfCardsStr = "x";
-                            word = "";
-                            break;
-                        }
-                    }
-                    if(newGame)
-                        continue;
-
-                    dout.writeUTF(nOfCardsStr + word);
-                    Log.d("screwed","sent the data");
-                    dout.flush();
-                    if(timer<=0)
-                        s.close();
-                }
-            }catch(Exception e){
-                Log.d("screwed",e.toString());
-                e.printStackTrace();
-            }
-        }).start();
-    }
-
-  */
-
     void checkBeforeSending() {
         nOfCardsStr = etNumberOfCards.getText().toString();
         word = etWord.getText().toString();
@@ -329,9 +249,13 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        submitButton.setEnabled(false);
         globalSequence++;
         stopCounting();
+
+        if(!listeningSuccess || !speakerConnected || !listenerConnected){
+            Toast.makeText(this, "Make sure the PC and phone are Connected first", Toast.LENGTH_LONG).show();
+            return;
+        }
     }
 
     void changeBackground(){
@@ -369,34 +293,6 @@ public class MainActivity extends AppCompatActivity {
         countDownT.start();
         Log.d("screwed","started countdown");
     }
-
-/*    void listenForNewGame(Socket s, DataInputStream din, DataOutputStream dout){
-        listenForNewGameT = new Thread(() -> {
-            while(true){
-            Log.d("screwed",".");
-                try{
-                    Thread.sleep(500);
-                    id = din.readUTF();
-                    if(id.charAt(0) == 'o'){
-                        Log.d("screwed","confirmation acknowledgement");
-                        continue;
-                    }
-                    Log.d("screwed","New Game Requested");
-                    newGame = true;
-                    stopCounting();
-                    break;
-                }catch(Exception e){
-                    if(s.isClosed())
-                        break;
-                    Log.d("screwed",e.toString());
-                }
-            }
-        });
-        listenForNewGameT.start();
-        Log.d("screwed","started listening");
-    }
-
- */
 
     void stopCounting(){
         globalCountDownSequence++;
